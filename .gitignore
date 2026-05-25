@@ -1,0 +1,28 @@
+# Python cache and envs
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Runtime generated monitoring artifacts
+data/monitoramento_rota.csv
+data/monitoramento_rota_quedas.csv
+data/monitoramento_rota_resumo.txt
+data/monitoramento_rota_latencia_log.csv
+
+# Logs
+*.log
