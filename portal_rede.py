@@ -151,6 +151,8 @@ class Handler(SimpleHTTPRequestHandler):
 
         if parsed.path == "/":
             self.path = "/web/dashboard.html"
+        elif parsed.path in {"/dashboard.html", "/dashboard.css", "/dashboard.js"}:
+            self.path = f"/web{parsed.path}"
         return super().do_GET()
 
 

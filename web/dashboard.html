@@ -22,14 +22,12 @@
         </div>
         <div class="actions">
           <button id="refresh-btn" class="btn">Atualizar Dados</button>
-          <label class="file-input">
-            Carregar CSV Manual
-            <input id="csv-input" type="file" accept=".csv,.txt" multiple />
-          </label>
         </div>
       </header>
 
       <section class="kpis reveal" id="kpi-grid">
+        <article class="card kpi"><span>Tempo de Sessão</span><strong id="kpi-session-time">-</strong></article>
+        <article class="card kpi"><span>Tempo Inativo (%)</span><strong id="kpi-downtime-pct">-</strong></article>
         <article class="card kpi"><span>Quedas Detectadas</span><strong id="kpi-falls">-</strong></article>
         <article class="card kpi"><span>Tempo Fora do Ar</span><strong id="kpi-downtime">-</strong></article>
         <article class="card kpi"><span>Hops Monitorados</span><strong id="kpi-hops">-</strong></article>
@@ -102,8 +100,31 @@
           <h2>Variação de Latência Média (Avrg ms) no Tempo</h2>
           <small id="latency-meta">Sem histórico</small>
         </div>
+        <div class="chart-filters">
+          <label>Janela média móvel
+            <select id="latency-ma-window">
+              <option value="1">1 (sem suavização)</option>
+              <option value="5" selected>5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+            </select>
+          </label>
+          <label>Janela temporal
+            <select id="latency-range">
+              <option value="120">últimas 120 amostras</option>
+              <option value="300" selected>últimas 300 amostras</option>
+              <option value="900">últimas 900 amostras</option>
+              <option value="0">tudo</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="latency-show-raw" /> Exibir linha bruta</label>
+          <label><input type="checkbox" id="latency-show-ma" checked /> Exibir média móvel</label>
+        </div>
         <div class="chart-filters" id="latency-hop-filter-list"></div>
+        <div class="chart-legend" id="latency-legend"></div>
         <canvas id="latency-chart"></canvas>
+        <small id="status-meta">Status do link no tempo</small>
+        <canvas id="link-status-chart"></canvas>
       </section>
     </main>
 
