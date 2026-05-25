@@ -1,0 +1,486 @@
+const FILE_MAIN = "/data/monitoramento_rota.csv";
+const FILE_OUTAGES = "/data/monitoramento_rota_quedas.csv";
+const FILE_SUMMARY = "/data/monitoramento_rota_resumo.txt";
+const FILE_LATENCY_LOG = "/data/monitoramento_rota_latencia_log.csv";
+
+const hopsTableBody = document.querySelector("#hops-table tbody");
+const outagesTableBody = document.querySelector("#outages-table tbody");
+const snapshotMeta = document.getElementById("snapshot-meta");
+const outageMeta = document.getElementById("outage-meta");
+
+const kpiFalls = document.getElementById("kpi-falls");
+const kpiDowntime = document.getElementById("kpi-downtime");
+const kpiHops = document.getElementById("kpi-hops");
+const kpiDestLoss = document.getElementById("kpi-dest-loss");
+
+const refreshBtn = document.getElementById("refresh-btn");
+const csvInput = document.getElementById("csv-input");
+const chart = document.getElementById("loss-chart");
+const ctx = chart.getContext("2d");
+const latencyChart = document.getElementById("latency-chart");
+const latencyCtx = latencyChart.getContext("2d");
+const hideFullLoss = document.getElementById("filter-hide-full-loss");
+const onlyLoss = document.getElementById("filter-only-loss");
+const hopFilterList = document.getElementById("hop-filter-list");
+const latencyHopFilterList = document.getElementById("latency-hop-filter-list");
+const latencyMeta = document.getElementById("latency-meta");
+
+let latestHopRows = [];
+let selectedHops = new Set();
+let selectedLatencyHops = new Set();
+let latencyHistory = [];
+
+refreshBtn.addEventListener("click", () => loadFromDisk());
+csvInput.addEventListener("change", (event) => loadFromUpload(event.target.files));
+hideFullLoss.addEventListener("change", () => renderLossChartWithFilters());
+onlyLoss.addEventListener("change", () => renderLossChartWithFilters());
+window.addEventListener("resize", () => renderLatencyChartWithFilters());
+
+loadFromDisk();
+setInterval(() => loadFromApi().catch(() => {}), 2000);
+
+async function loadFromDisk() {
+  try {
+    await loadFromApi();
+    return;
+  } catch (_) {}
+
+  try {
+    const [mainRaw, outagesRaw, summaryRaw] = await Promise.all([
+      fetchText(FILE_MAIN),
+      fetchText(FILE_OUTAGES),
+      fetchText(FILE_SUMMARY),
+    ]);
+    const latencyRaw = await fetchText(FILE_LATENCY_LOG).catch(() => "");
+    hydrateDashboard(mainRaw, outagesRaw, summaryRaw, latencyRaw);
+  } catch (error) {
+    snapshotMeta.textContent = "Não foi possível carregar automaticamente. Use 'Carregar CSV Manual'.";
+  }
+}
+
+async function loadFromApi() {
+  const response = await fetch("/api/snapshot", { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("API indisponível");
+  }
+
+  const payload = await response.json();
+  const latencyRaw = await fetchText(FILE_LATENCY_LOG).catch(() => "");
+  if (payload.error) {
+    snapshotMeta.textContent = `Erro do monitor: ${payload.error}`;
+    return;
+  }
+
+  const hopRows = payload.hops || [];
+  const outageRows = payload.outages || [];
+  const summary = payload.summary || {};
+
+  renderHops(hopRows);
+  renderOutages(outageRows);
+  renderKpis(hopRows, outageRows, summary);
+  latestHopRows = hopRows;
+  syncHopFilters(hopRows);
+  latencyHistory = parseLatencyLog(latencyRaw);
+  syncLatencyHopFilters(hopRows);
+  renderLossChartWithFilters();
+  renderLatencyChartWithFilters();
+
+  snapshotMeta.textContent = `API ao vivo: ciclo ${payload.cycle || 0} | ${new Date().toLocaleString("pt-BR")}`;
+  outageMeta.textContent = `${outageRows.length} incidente(s)`;
+}
+
+async function fetchText(path) {
+  const response = await fetch(path, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar ${path}`);
+  }
+  return response.text();
+}
+
+function loadFromUpload(fileList) {
+  const files = Array.from(fileList || []);
+  const findFile = (name) => files.find((f) => f.name.toLowerCase() === name.toLowerCase());
+
+  Promise.all([
+    readFileText(findFile(FILE_MAIN)),
+    readFileText(findFile(FILE_OUTAGES)),
+    readFileText(findFile(FILE_SUMMARY)),
+  ])
+    .then(async ([mainRaw, outagesRaw, summaryRaw]) => {
+      const latencyRaw = await readFileText(findFile(FILE_LATENCY_LOG)).catch(() => "");
+      hydrateDashboard(mainRaw, outagesRaw, summaryRaw, latencyRaw);
+    })
+    .catch(() => {
+      snapshotMeta.textContent = "Selecione os arquivos monitoramento_rota.csv, monitoramento_rota_quedas.csv e monitoramento_rota_resumo.txt";
+    });
+}
+
+function readFileText(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject(new Error("arquivo ausente"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file, "utf-8");
+  });
+}
+
+function hydrateDashboard(mainRaw, outagesRaw, summaryRaw, latencyRaw = "") {
+  const hopRows = parseCsv(mainRaw);
+  const outageRows = parseCsv(outagesRaw);
+  const summary = parseSummary(summaryRaw);
+
+  renderHops(hopRows);
+  renderOutages(outageRows);
+  renderKpis(hopRows, outageRows, summary);
+  latestHopRows = hopRows;
+  syncHopFilters(hopRows);
+  latencyHistory = parseLatencyLog(latencyRaw);
+  syncLatencyHopFilters(hopRows);
+  renderLossChartWithFilters();
+  renderLatencyChartWithFilters();
+
+  snapshotMeta.textContent = `Snapshot atualizado em ${new Date().toLocaleString("pt-BR")}`;
+  outageMeta.textContent = `${outageRows.length} incidente(s)`;
+}
+
+function parseCsv(text) {
+  const lines = (text || "").trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length <= 1) {
+    return [];
+  }
+
+  const headers = lines[0].split(";").map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const values = line.split(";").map((v) => v.trim());
+    return headers.reduce((acc, key, idx) => {
+      acc[key] = values[idx] ?? "";
+      return acc;
+    }, {});
+  });
+}
+
+function parseSummary(text) {
+  const out = {};
+  for (const line of (text || "").split(/\r?\n/)) {
+    if (!line.includes("=")) {
+      continue;
+    }
+    const [key, value] = line.split("=");
+    out[key.trim()] = (value || "").trim();
+  }
+  return out;
+}
+
+function renderHops(rows) {
+  hopsTableBody.innerHTML = "";
+  for (const row of rows) {
+    const sent = pick(row, ["Sent", "Sent_pkt"]);
+    const recv = pick(row, ["Recv", "Recv_pkt"]);
+    const best = pick(row, ["Best", "Best_ms"]);
+    const worst = pick(row, ["Worst", "Worst_ms"]);
+    const avrg = pick(row, ["Avrg", "Avrg_ms"]);
+    const last = pick(row, ["Last", "Last_ms"]);
+    const tr = document.createElement("tr");
+    const loss = Number.parseFloat(row.Loss_Pct || "0");
+    tr.innerHTML = `
+      <td>${safe(row.Hop)}</td>
+      <td>${safe(row.Host_IP)}</td>
+      <td>${safe(row.Host_Name)}</td>
+      <td>${safe(sent)}</td>
+      <td>${safe(recv)}</td>
+      <td class="${lossClass(loss)}">${formatLoss(loss)}</td>
+      <td>${formatMs(best)}</td>
+      <td>${formatMs(worst)}</td>
+      <td>${formatMs(avrg)}</td>
+      <td>${formatMs(last)}</td>
+    `;
+    hopsTableBody.appendChild(tr);
+  }
+}
+
+function renderOutages(rows) {
+  outagesTableBody.innerHTML = "";
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${safe(row.Outage_ID)}</td>
+      <td>${safe(row.Start)}</td>
+      <td>${safe(row.End)}</td>
+      <td>${formatSeconds(row.Duration_Sec)}</td>
+      <td>${safe(row.Down_Cycles)}</td>
+    `;
+    outagesTableBody.appendChild(tr);
+  }
+}
+
+function renderKpis(hops, outages, summary) {
+  const destination = hops[hops.length - 1] || {};
+  const destLoss = Number.parseFloat(destination.Loss_Pct || "0");
+
+  kpiFalls.textContent = safe(summary.outage_count || String(outages.length));
+  kpiDowntime.textContent = `${Number.parseFloat(summary.total_downtime_sec || "0").toFixed(2)} s`;
+  kpiHops.textContent = String(hops.length);
+  kpiDestLoss.textContent = formatLoss(destLoss);
+  kpiDestLoss.className = lossClass(destLoss);
+}
+
+function renderLossChart(rows) {
+  const hops = rows.map((r) => Number.parseInt(r.Hop || "0", 10));
+  const losses = rows.map((r) => Number.parseFloat(r.Loss_Pct || "0"));
+
+  ctx.clearRect(0, 0, chart.width, chart.height);
+
+  if (rows.length === 0) {
+    ctx.fillStyle = "#4e7a84";
+    ctx.font = "14px Montserrat";
+    ctx.fillText("Sem dados para plotar", 24, 40);
+    return;
+  }
+
+  const pad = { top: 22, right: 18, bottom: 42, left: 42 };
+  const w = chart.width - pad.left - pad.right;
+  const h = chart.height - pad.top - pad.bottom;
+  const barWidth = Math.max(12, Math.floor(w / rows.length) - 6);
+
+  ctx.strokeStyle = "rgba(8, 76, 97, 0.18)";
+  for (let t = 0; t <= 100; t += 25) {
+    const y = pad.top + h - (t / 100) * h;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + w, y);
+    ctx.stroke();
+    ctx.fillStyle = "#4e7a84";
+    ctx.font = "11px Montserrat";
+    ctx.fillText(`${t}%`, 8, y + 4);
+  }
+
+  rows.forEach((_, i) => {
+    const x = pad.left + i * (barWidth + 6);
+    const loss = Math.min(100, Math.max(0, losses[i]));
+    const y = pad.top + h - (loss / 100) * h;
+    const bh = (loss / 100) * h;
+
+    ctx.fillStyle = barColor(loss);
+    ctx.fillRect(x, y, barWidth, bh);
+
+    ctx.fillStyle = "#083b46";
+    ctx.font = "11px Montserrat";
+    ctx.fillText(`H${hops[i]}`, x, pad.top + h + 16);
+  });
+}
+
+function renderLossChartWithFilters() {
+  const filtered = latestHopRows.filter((row) => {
+    const hop = Number.parseInt(row.Hop || "0", 10);
+    const loss = Number.parseFloat(row.Loss_Pct || "0");
+    if (!selectedHops.has(hop)) return false;
+    if (hideFullLoss.checked && loss >= 100) return false;
+    if (onlyLoss.checked && loss <= 0) return false;
+    return true;
+  });
+  renderLossChart(filtered);
+}
+
+function parseLatencyLog(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return [];
+  const byTs = new Map();
+  for (const row of rows) {
+    const tsRaw = row.Timestamp || "";
+    if (!tsRaw) continue;
+    if (!byTs.has(tsRaw)) byTs.set(tsRaw, { ts: tsRaw, values: {} });
+    const point = byTs.get(tsRaw);
+    const hop = Number.parseInt(row.Hop || "0", 10);
+    const avrg = Number.parseFloat(String(row.Avrg_ms || ""));
+    if (Number.isFinite(hop)) point.values[hop] = Number.isFinite(avrg) ? avrg : null;
+  }
+  const ordered = Array.from(byTs.values()).sort((a, b) => a.ts.localeCompare(b.ts));
+  const maxPoints = 1800;
+  return ordered.length > maxPoints ? ordered.slice(ordered.length - maxPoints) : ordered;
+}
+
+function syncHopFilters(rows) {
+  const hops = rows.map((r) => Number.parseInt(r.Hop || "0", 10)).filter((n) => Number.isFinite(n));
+  const valid = new Set(hops);
+  if (selectedHops.size === 0) {
+    selectedHops = valid;
+  } else {
+    selectedHops = new Set([...selectedHops].filter((hop) => valid.has(hop)));
+    for (const hop of valid) selectedHops.add(hop);
+  }
+
+  hopFilterList.innerHTML = "";
+  hops.forEach((hop) => {
+    const id = `hop-filter-${hop}`;
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" id="${id}" ${selectedHops.has(hop) ? "checked" : ""}/> H${hop}`;
+    const input = label.querySelector("input");
+    input.addEventListener("change", () => {
+      if (input.checked) selectedHops.add(hop);
+      else selectedHops.delete(hop);
+      renderLossChartWithFilters();
+    });
+    hopFilterList.appendChild(label);
+  });
+}
+
+function syncLatencyHopFilters(rows) {
+  const hops = rows.map((r) => Number.parseInt(r.Hop || "0", 10)).filter((n) => Number.isFinite(n));
+  const valid = new Set(hops);
+  if (selectedLatencyHops.size === 0) {
+    selectedLatencyHops = valid;
+  } else {
+    selectedLatencyHops = new Set([...selectedLatencyHops].filter((hop) => valid.has(hop)));
+    for (const hop of valid) selectedLatencyHops.add(hop);
+  }
+
+  latencyHopFilterList.innerHTML = "";
+  hops.forEach((hop) => {
+    const id = `latency-hop-filter-${hop}`;
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" id="${id}" ${selectedLatencyHops.has(hop) ? "checked" : ""}/> H${hop}`;
+    const input = label.querySelector("input");
+    input.addEventListener("change", () => {
+      if (input.checked) selectedLatencyHops.add(hop);
+      else selectedLatencyHops.delete(hop);
+      renderLatencyChartWithFilters();
+    });
+    latencyHopFilterList.appendChild(label);
+  });
+}
+
+function renderLatencyChartWithFilters() {
+  const activeHops = [...selectedLatencyHops].sort((a, b) => a - b);
+  const filteredSeries = activeHops.map((hop) => ({
+    hop,
+    points: latencyHistory.map((entry) => entry.values[hop]),
+  }));
+  const labels = latencyHistory.map((x) => formatTimeLabel(x.ts));
+  drawLatencyChart(filteredSeries, labels);
+}
+
+function drawLatencyChart(series, labels) {
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(640, Math.floor(latencyChart.clientWidth || 900));
+  const height = Math.max(260, Math.floor(latencyChart.clientHeight || 320));
+  latencyChart.width = Math.floor(width * dpr);
+  latencyChart.height = Math.floor(height * dpr);
+  latencyCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  latencyCtx.clearRect(0, 0, width, height);
+
+  const hasData = series.some((s) => s.points.some((p) => Number.isFinite(p)));
+  if (!hasData) {
+    latencyCtx.fillStyle = "#4e7a84";
+    latencyCtx.font = "14px Montserrat";
+    latencyCtx.fillText("Sem histórico de latência para os filtros selecionados", 20, 36);
+    latencyMeta.textContent = "Sem histórico";
+    return;
+  }
+
+  let maxY = 0;
+  series.forEach((s) => s.points.forEach((p) => { if (Number.isFinite(p)) maxY = Math.max(maxY, p); }));
+  maxY = Math.max(10, Math.ceil(maxY * 1.15));
+
+  const pad = { top: 16, right: 18, bottom: 38, left: 52 };
+  const w = width - pad.left - pad.right;
+  const h = height - pad.top - pad.bottom;
+  const stepX = labels.length > 1 ? w / (labels.length - 1) : w;
+
+  latencyCtx.strokeStyle = "rgba(8, 76, 97, 0.18)";
+  latencyCtx.fillStyle = "#4e7a84";
+  latencyCtx.font = "11px Montserrat";
+  for (let i = 0; i <= 4; i++) {
+    const val = (maxY / 4) * i;
+    const y = pad.top + h - (val / maxY) * h;
+    latencyCtx.beginPath();
+    latencyCtx.moveTo(pad.left, y);
+    latencyCtx.lineTo(pad.left + w, y);
+    latencyCtx.stroke();
+    latencyCtx.fillText(`${val.toFixed(0)} ms`, 8, y + 4);
+  }
+
+  const palette = ["#0f766e", "#155e75", "#2563eb", "#f59e0b", "#dc2626", "#7c3aed", "#be123c", "#0ea5e9"];
+  series.forEach((s, idx) => {
+    const color = palette[idx % palette.length];
+    latencyCtx.strokeStyle = color;
+    latencyCtx.lineWidth = 2;
+    latencyCtx.beginPath();
+    let started = false;
+    s.points.forEach((p, i) => {
+      if (!Number.isFinite(p)) return;
+      const x = pad.left + i * stepX;
+      const y = pad.top + h - (p / maxY) * h;
+      if (!started) {
+        latencyCtx.moveTo(x, y);
+        started = true;
+      } else {
+        latencyCtx.lineTo(x, y);
+      }
+    });
+    latencyCtx.stroke();
+  });
+
+  const recentCount = Math.min(labels.length, 2);
+  if (recentCount > 0) {
+    latencyCtx.fillStyle = "#4e7a84";
+    latencyCtx.font = "11px Montserrat";
+    latencyCtx.fillText(labels[Math.max(0, labels.length - recentCount)], pad.left, pad.top + h + 18);
+    latencyCtx.fillText(labels[labels.length - 1], pad.left + w - 56, pad.top + h + 18);
+  }
+
+  const activeCount = series.filter((s) => s.points.some((p) => Number.isFinite(p))).length;
+  latencyMeta.textContent = `${activeCount} hop(s) visível(is), ${labels.length} amostra(s)`;
+}
+
+function lossClass(loss) {
+  if (loss < 5) return "loss-good";
+  if (loss < 30) return "loss-mid";
+  return "loss-bad";
+}
+
+function barColor(loss) {
+  if (loss < 5) return "#1f9d6a";
+  if (loss < 30) return "#d68c00";
+  return "#cc334f";
+}
+
+function formatLoss(loss) {
+  if (!Number.isFinite(loss)) return "-";
+  return `${loss.toFixed(2)}%`;
+}
+
+function formatMs(value) {
+  const num = Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(num)) return "-";
+  return num.toFixed(2);
+}
+
+function formatSeconds(value) {
+  const num = Number.parseFloat(String(value ?? ""));
+  if (!Number.isFinite(num)) return "-";
+  return num.toFixed(2);
+}
+
+function safe(value) {
+  const text = String(value ?? "-");
+  return text.length ? text : "-";
+}
+
+function pick(row, keys) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).length > 0) {
+      return row[key];
+    }
+  }
+  return "";
+}
+
+function formatTimeLabel(ts) {
+  if (!ts) return "";
+  const part = String(ts).split(" ");
+  return part[1] || part[0] || "";
+}

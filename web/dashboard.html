@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel de Estabilidade de Rede</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
+    <main class="app">
+      <header class="hero reveal">
+        <div>
+          <p class="eyebrow">Monitoramento Técnico</p>
+          <h1>Painel de Conectividade e Quedas</h1>
+          <p class="subtitle">Evidência técnica da estabilidade do link com histórico de incidentes e métricas por salto.</p>
+        </div>
+        <div class="actions">
+          <button id="refresh-btn" class="btn">Atualizar Dados</button>
+          <label class="file-input">
+            Carregar CSV Manual
+            <input id="csv-input" type="file" accept=".csv,.txt" multiple />
+          </label>
+        </div>
+      </header>
+
+      <section class="kpis reveal" id="kpi-grid">
+        <article class="card kpi"><span>Quedas Detectadas</span><strong id="kpi-falls">-</strong></article>
+        <article class="card kpi"><span>Tempo Fora do Ar</span><strong id="kpi-downtime">-</strong></article>
+        <article class="card kpi"><span>Hops Monitorados</span><strong id="kpi-hops">-</strong></article>
+        <article class="card kpi"><span>Perda no Destino</span><strong id="kpi-dest-loss">-</strong></article>
+      </section>
+
+      <section class="grid reveal">
+        <article class="card panel">
+          <div class="panel-title-row">
+            <h2>Perda por Salto (%)</h2>
+          </div>
+          <div class="chart-filters">
+            <label><input type="checkbox" id="filter-hide-full-loss" /> Ocultar hops com 100% de perda</label>
+            <label><input type="checkbox" id="filter-only-loss" /> Mostrar apenas hops com perda &gt; 0%</label>
+          </div>
+          <div class="chart-filters" id="hop-filter-list"></div>
+          <canvas id="loss-chart" width="900" height="300"></canvas>
+        </article>
+
+        <article class="card panel">
+          <div class="panel-title-row">
+            <h2>Incidentes de Queda</h2>
+            <small id="outage-meta">Sem dados</small>
+          </div>
+          <div class="table-wrapper">
+            <table id="outages-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Início</th>
+                  <th>Fim</th>
+                  <th>Duração (s)</th>
+                  <th>Ciclos</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="card panel reveal">
+        <div class="panel-title-row">
+          <h2>Status por Hop</h2>
+          <small id="snapshot-meta">Aguardando arquivo...</small>
+        </div>
+        <div class="table-wrapper">
+          <table id="hops-table">
+            <thead>
+              <tr>
+                <th>Hop</th>
+                <th>Host/IP</th>
+                <th>Host Name</th>
+                <th>Sent (pkt)</th>
+                <th>Recv (pkt)</th>
+                <th>Loss (%)</th>
+                <th>Best (ms)</th>
+                <th>Worst (ms)</th>
+                <th>Avrg (ms)</th>
+                <th>Last (ms)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card panel reveal">
+        <div class="panel-title-row">
+          <h2>Variação de Latência Média (Avrg ms) no Tempo</h2>
+          <small id="latency-meta">Sem histórico</small>
+        </div>
+        <div class="chart-filters" id="latency-hop-filter-list"></div>
+        <canvas id="latency-chart"></canvas>
+      </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>

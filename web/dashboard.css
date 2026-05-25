@@ -1,0 +1,280 @@
+:root {
+  --bg: #e8f6f3;
+  --ink: #083b46;
+  --muted: #4e7a84;
+  --card: rgba(255, 255, 255, 0.84);
+  --line: rgba(8, 76, 97, 0.14);
+  --accent: #07beb8;
+  --accent-strong: #05505e;
+  --ok: #1f9d6a;
+  --warn: #d68c00;
+  --bad: #cc334f;
+  --shadow: 0 24px 40px rgba(5, 80, 94, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Montserrat", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at 12% 20%, #c8efe6 0%, transparent 38%),
+    radial-gradient(circle at 88% 80%, #b6e4f8 0%, transparent 35%),
+    linear-gradient(140deg, #e7f5f2 0%, #f2f9fb 100%);
+}
+
+.bg-orb {
+  position: fixed;
+  width: 26rem;
+  height: 26rem;
+  border-radius: 50%;
+  filter: blur(70px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.orb-a {
+  top: -8rem;
+  right: -4rem;
+  background: rgba(7, 190, 184, 0.2);
+}
+
+.orb-b {
+  bottom: -10rem;
+  left: -6rem;
+  background: rgba(10, 78, 120, 0.2);
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  width: min(1200px, 94vw);
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.eyebrow {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent-strong);
+  font-size: 0.75rem;
+}
+
+h1 {
+  margin: 0.25rem 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 12rem;
+}
+
+.btn,
+.file-input {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--accent-strong);
+  font-family: inherit;
+  font-weight: 700;
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.file-input input {
+  display: none;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  border-radius: 18px;
+  backdrop-filter: blur(14px);
+}
+
+.kpi {
+  padding: 1rem;
+}
+
+.kpi span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.kpi strong {
+  display: block;
+  font-size: 1.6rem;
+  margin-top: 0.35rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 0.9rem;
+}
+
+.panel {
+  padding: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+
+h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1.05rem;
+}
+
+small {
+  color: var(--muted);
+}
+
+canvas {
+  width: 100%;
+  height: auto;
+}
+
+#latency-chart {
+  width: 100%;
+  min-height: 320px;
+  height: 42vh;
+  max-height: 480px;
+}
+
+.chart-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+  margin: 0.2rem 0 0.7rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.chart-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.table-wrapper {
+  max-height: 21rem;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.87rem;
+}
+
+th,
+td {
+  padding: 0.56rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: rgba(242, 252, 251, 0.95);
+}
+
+.loss-good {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.loss-mid {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.loss-bad {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+.reveal {
+  animation: rise 560ms ease both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 980px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    flex-direction: column;
+  }
+
+  .actions {
+    width: 100%;
+    flex-direction: row;
+  }
+
+  .btn,
+  .file-input {
+    flex: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
