@@ -1,45 +1,52 @@
 # Project Map
 
 ## What This System Does
-This project monitors network path stability from local machine to a target host/IP.
-It discovers route hops, probes each hop continuously, computes quality metrics, detects outages, and exports evidence for technical support and BI analysis.
+This project monitors network path stability from the local machine (Windows, Linux or macOS) to a target host/IP.
+It discovers route hops, probes each hop continuously, computes quality metrics, detects and classifies outages,
+and exports evidence for technical support and BI analysis. A local web portal shows everything in real time.
 
 ## Core Domains
 
-### Route Discovery Domain
-- Resolves hop path via `tracert`.
-- Extracts ordered hop IPs for monitoring scope.
+### Route Discovery Domain (`netmon/probes.py`, `netmon/engine.py`)
+- Parallel TTL-limited pings (fallback: `tracert`/`traceroute`/`tracepath`).
+- Destination always appended as the last hop; periodic refresh records route changes as events.
 
-### Connectivity Metrics Domain
-- Per-hop counters: sent/received/loss.
-- Per-hop latency aggregates: best/worst/avg/last in milliseconds.
-- Maintains consistent numeric formatting and unit semantics.
+### Connectivity Metrics Domain (`netmon/metrics.py`)
+- Per-hop counters: sent/received/loss (`pkt`, `%`).
+- Per-hop latency: best/worst/avg/last/stdev/jitter (`ms`) plus a recent window for current conditions.
 
-### Outage Detection Domain
-- Uses final-destination reachability to identify outage windows.
-- Tracks start/end/duration and number of outage cycles.
+### Outage Detection Domain (`netmon/metrics.py`)
+- Destination reachability with a consecutive-failure threshold (`outage_min_cycles`).
+- Tracks start/end/duration/cycles, ongoing outage and failure scope (last responding hop).
 
-### Evidence Persistence Domain
-- Snapshot: `monitoramento_rota.csv`
-- Outage incidents: `monitoramento_rota_quedas.csv`
-- Summary: `monitoramento_rota_resumo.txt`
-- Historical avg latency log: `monitoramento_rota_latencia_log.csv`
+### Diagnosis Domain (`netmon/metrics.py`)
+- MTR-style interpretation: only loss that persists to the destination matters; local vs external origin; jitter; destination blocking ICMP.
 
-### Visualization Domain
-- Renders tables/KPIs/charts.
-- Filters and interaction controls.
+### Evidence Persistence Domain (`netmon/storage.py`)
+- Snapshot, outages, summary, latency log, events, report; session archive in `data/sessoes/`; ZIP export.
+
+### Visualization Domain (`web/`)
+- Renders status, KPIs, diagnosis, charts and tables; filters and interaction controls; offline import.
 - Consumes API and file contracts; does not decide domain correctness.
 
 ## High-Level Data Flow
-1. `monitor_rota.py` discovers hops and runs parallel ping loop.
-2. Domain metrics and outages are updated each cycle.
-3. Files are written/updated as evidence outputs.
-4. `portal_rede.py` hosts UI and exposes `/api/snapshot`.
-5. `dashboard.js` reads snapshot + historical log and renders visual analytics.
+1. `portal_rede.py` (or `monitor_rota.py`) loads settings (defaults < `config.json` < CLI) and starts `MonitorEngine`.
+2. The engine resolves the target, starts pinging it immediately and discovers the route in the background.
+3. Each cycle pings all hops in parallel, updates metrics/outage state, appends a history point and writes evidence files.
+4. The portal exposes the state through `/api/*`; `/api/stream` pushes each change to the dashboard (SSE).
+5. `dashboard.js` merges incremental history and renders; settings/actions go back through `POST /api/*`.
+6. On reset/target change/exit the session is finalized (report) and archived at the next start.
 
 ## Change Location Guide
-- Domain calculations or outage rules: `monitor_rota.py`
+- Domain calculations, outage or diagnosis rules: `netmon/metrics.py`
+- OS commands, parsing, route discovery: `netmon/probes.py`
+- Monitoring loop, retries, sessions, history, snapshot shape: `netmon/engine.py`
+- File contracts, archive, report, ZIP: `netmon/storage.py`
+- Settings, defaults and validation: `netmon/config.py` (+ `config.example.json`)
 - Runtime API contract/server lifecycle: `portal_rede.py`
-- Visual behavior, filters, chart rendering: `dashboard.js` + `dashboard.html` + `dashboard.css`
+- Console mode: `monitor_rota.py`
+- Visual behavior, filters, chart rendering: `web/dashboard.js` + `web/dashboard.html` + `web/dashboard.css`
+- Setup ergonomics: `iniciar.bat`, `iniciar.sh`, `iniciar.command`, `netmon/autostart.py`
+- Tests: `tests/` (`python -m unittest discover -s tests -t .`)
 - Governance and architecture updates: `AI_CONTRACT.md`, `ARCHITECTURE.md`, `DECISIONS.md`, `projectmap.md`
 - New feature definition before coding: `specs/<feature_name>.md`

@@ -11,12 +11,15 @@ This contract defines non-negotiable engineering rules for AI-assisted changes i
 - Do not silently change data contracts (CSV/API keys/units) without updating docs and decision log.
 
 ## Layer Responsibility Rule
-- Domain logic must live in backend Python modules (`monitor_rota.py`, `portal_rede.py`) or dedicated domain/service modules created for that purpose.
+- Domain logic must live in the backend `netmon/` package (`metrics.py` for rules, `engine.py` for orchestration); `monitor_rota.py` and `portal_rede.py` are entry points only.
+- The project must keep running with the Python standard library only (no runtime third-party dependencies) and without administrator privileges.
 - UI logic (`dashboard.js`, `dashboard.html`, `dashboard.css`) must only handle presentation, interaction, filtering, and rendering.
 - If behavior correctness depends on business rules (outage detection, aggregation, metric semantics), implement in Domain/Service first.
 
 ## Testing and Quality Gates (Hard Requirement)
 Before task completion:
+- `python -m unittest discover -s tests -t .` must pass (CI runs it on Windows, Linux and macOS).
+- `ruff check .` and `node --check web/dashboard.js` must pass.
 - Syntax/type checks must pass for modified files.
 - Functional checks for modified flows must pass (monitor loop, CSV output, API snapshot, dashboard parsing).
 - No unresolved runtime errors in the changed path.
