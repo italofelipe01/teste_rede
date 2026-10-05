@@ -1,0 +1,17 @@
+{
+  "_comentario": "Opcional. Copie para config.json (ou altere pelo painel em Configurações). Chaves iniciadas com _ são ignoradas.",
+  "target": "8.8.8.8",
+  "interval_sec": 1.0,
+  "timeout_ms": 1000,
+  "max_hops": 30,
+  "outage_min_cycles": 3,
+  "route_refresh_min": 10,
+  "stats_window": 120,
+  "history_points": 3600,
+  "csv_path": "data/monitoramento_rota.csv",
+  "keep_sessions": 0,
+  "host": "127.0.0.1",
+  "port": 8000,
+  "open_browser": true,
+  "allow_remote_control": false
+}

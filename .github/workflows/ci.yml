@@ -5,9 +5,10 @@ on:
     branches: ["main", "master"]
   pull_request:
     branches: ["main", "master"]
+  workflow_dispatch:
 
 jobs:
-  validate:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,6 +19,46 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Syntax check
+      - name: Ruff
         run: |
-          python -m py_compile monitor_rota.py portal_rede.py
+          python -m pip install --quiet ruff
+          ruff check .
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Dashboard JS syntax
+        run: node --check web/dashboard.js
+
+  test:
+    name: test (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.9"
+          - os: ubuntu-latest
+            python-version: "3.13"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Syntax check
+        run: python -m compileall -q netmon tests monitor_rota.py portal_rede.py
+
+      - name: Unit and integration tests
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Environment check with the real system ping
+        run: python portal_rede.py --check 127.0.0.1
