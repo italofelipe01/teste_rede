@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import plistlib
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 
 APP_ID = "netmon-monitor-rede"
 APP_NAME = "Monitor de Estabilidade de Rede"
@@ -52,7 +52,7 @@ def _desktop_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
-def build_entry(platform_name: str, python: str, script: Path, args: list[str]) -> bytes:
+def build_entry(platform_name: str, python: str, script: PurePath, args: list[str]) -> bytes:
     """Conteúdo do arquivo de início automático para a plataforma."""
     workdir = script.parent
     if platform_name == "windows":
