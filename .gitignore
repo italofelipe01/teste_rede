@@ -18,11 +18,12 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Runtime generated monitoring artifacts
-data/monitoramento_rota.csv
-data/monitoramento_rota_quedas.csv
-data/monitoramento_rota_resumo.txt
-data/monitoramento_rota_latencia_log.csv
+# Runtime generated monitoring artifacts (evidências, sessões arquivadas e logs)
+data/
+*.tmp
+
+# Local machine configuration (created/updated by the dashboard)
+config.json
 
 # Logs
 *.log

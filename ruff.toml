@@ -1,0 +1,7 @@
+# Lint opcional (apenas CI/desenvolvimento). O projeto em si não tem dependências externas.
+line-length = 120
+target-version = "py39"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["UP007", "UP045"]
