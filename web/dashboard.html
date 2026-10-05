@@ -3,65 +3,134 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Painel de Estabilidade de Rede</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="dashboard.css" />
   </head>
   <body>
-    <div class="bg-orb orb-a"></div>
-    <div class="bg-orb orb-b"></div>
+    <header class="topbar">
+      <div class="brand">
+        <img src="favicon.svg" alt="" width="40" height="40" />
+        <div>
+          <p class="eyebrow">Monitoramento técnico</p>
+          <h1>Estabilidade de Rede</h1>
+        </div>
+      </div>
+      <div class="topbar-info">
+        <span class="chip" title="Destino monitorado">Destino: <strong id="target-label">-</strong></span>
+        <span class="chip conn conn-connecting" id="conn-indicator"><span class="dot"></span><span id="conn-text">Conectando...</span></span>
+      </div>
+      <nav class="actions" aria-label="Ações">
+        <button id="btn-settings" class="btn" type="button">Configurações</button>
+        <button id="btn-export" class="btn btn-primary" type="button">Exportar evidências</button>
+        <details class="menu" id="more-menu">
+          <summary class="btn">Mais</summary>
+          <div class="menu-list">
+            <button id="btn-rediscover" type="button">Redescobrir rota agora</button>
+            <button id="btn-reset" type="button">Iniciar nova sessão</button>
+            <button id="btn-sessions" type="button">Sessões anteriores</button>
+            <button id="btn-import" type="button">Importar evidências (offline)</button>
+          </div>
+        </details>
+      </nav>
+    </header>
 
     <main class="app">
-      <header class="hero reveal">
-        <div>
-          <p class="eyebrow">Monitoramento Técnico</p>
-          <h1>Painel de Conectividade e Quedas</h1>
-          <p class="subtitle">Evidência técnica da estabilidade do link com histórico de incidentes e métricas por salto.</p>
+      <section id="status-banner" class="status-banner st-unknown" aria-live="polite">
+        <div class="status-dot" aria-hidden="true"></div>
+        <div class="status-text">
+          <h2 id="status-title">Aguardando dados...</h2>
+          <p id="status-detail">Conectando ao monitor.</p>
         </div>
-        <div class="actions">
-          <button id="refresh-btn" class="btn">Atualizar Dados</button>
-        </div>
-      </header>
-
-      <section class="kpis reveal" id="kpi-grid">
-        <article class="card kpi"><span>Tempo de Sessão</span><strong id="kpi-session-time">-</strong></article>
-        <article class="card kpi"><span>Tempo Inativo (%)</span><strong id="kpi-downtime-pct">-</strong></article>
-        <article class="card kpi"><span>Quedas Detectadas</span><strong id="kpi-falls">-</strong></article>
-        <article class="card kpi"><span>Tempo Fora do Ar</span><strong id="kpi-downtime">-</strong></article>
-        <article class="card kpi"><span>Hops Monitorados</span><strong id="kpi-hops">-</strong></article>
-        <article class="card kpi"><span>Perda no Destino</span><strong id="kpi-dest-loss">-</strong></article>
+        <div class="status-timer" id="status-timer"></div>
       </section>
 
-      <section class="grid reveal">
+      <section id="alerts" class="alerts" aria-live="polite"></section>
+
+      <section class="kpis" aria-label="Indicadores">
+        <article class="card kpi"><span>Disponibilidade</span><strong id="kpi-availability">-</strong><small id="kpi-availability-sub">da sessão</small></article>
+        <article class="card kpi"><span>Tempo de sessão</span><strong id="kpi-session-time">-</strong><small id="kpi-session-sub">-</small></article>
+        <article class="card kpi"><span>Quedas detectadas</span><strong id="kpi-falls">-</strong><small id="kpi-falls-sub">-</small></article>
+        <article class="card kpi"><span>Tempo fora do ar</span><strong id="kpi-downtime">-</strong><small id="kpi-downtime-sub">-</small></article>
+        <article class="card kpi"><span>Latência no destino</span><strong id="kpi-latency">-</strong><small id="kpi-latency-sub">-</small></article>
+        <article class="card kpi"><span>Jitter no destino</span><strong id="kpi-jitter">-</strong><small id="kpi-jitter-sub">variação entre respostas</small></article>
+        <article class="card kpi"><span>Perda no destino</span><strong id="kpi-dest-loss">-</strong><small id="kpi-dest-loss-sub">-</small></article>
+        <article class="card kpi"><span>Saltos monitorados</span><strong id="kpi-hops">-</strong><small id="kpi-hops-sub">-</small></article>
+      </section>
+
+      <section class="card diagnosis dg-info" id="diagnosis-card">
+        <h2>Diagnóstico</h2>
+        <p id="diagnosis-text">Aguardando medições.</p>
+      </section>
+
+      <section class="card panel">
+        <div class="panel-title-row">
+          <h2>Latência ao longo do tempo (RTT, ms)</h2>
+          <small id="latency-meta">Sem histórico</small>
+        </div>
+        <div class="chart-filters">
+          <label>Janela
+            <select id="latency-range">
+              <option value="300">últimos 5 min</option>
+              <option value="900" selected>últimos 15 min</option>
+              <option value="3600">última 1 h</option>
+              <option value="0">tudo</option>
+            </select>
+          </label>
+          <label>Média móvel
+            <select id="latency-ma-window">
+              <option value="1">sem suavização</option>
+              <option value="5" selected>5 amostras</option>
+              <option value="10">10 amostras</option>
+              <option value="20">20 amostras</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="latency-show-raw" checked /> Linha bruta</label>
+          <label><input type="checkbox" id="latency-show-ma" checked /> Média móvel</label>
+          <span class="spacer"></span>
+          <button type="button" class="link-btn" id="series-all">Todos os saltos</button>
+          <button type="button" class="link-btn" id="series-dest">Só o destino</button>
+        </div>
+        <div class="series-list" id="latency-series-list"></div>
+        <div class="chart-wrap">
+          <canvas id="latency-chart" aria-label="Gráfico de latência por salto"></canvas>
+          <canvas id="latency-overlay" class="overlay" aria-hidden="true"></canvas>
+          <div class="tooltip" id="chart-tooltip" hidden></div>
+        </div>
+        <div class="strip-label"><small id="status-meta">Status do destino no tempo</small><small class="legend-inline"><i class="sw sw-up"></i> respondendo <i class="sw sw-down"></i> sem resposta</small></div>
+        <canvas id="link-status-chart" aria-label="Status do destino no tempo"></canvas>
+      </section>
+
+      <section class="grid">
         <article class="card panel">
           <div class="panel-title-row">
-            <h2>Perda por Salto (%)</h2>
+            <h2>Perda por salto (%)</h2>
+            <small id="loss-meta">-</small>
           </div>
           <div class="chart-filters">
-            <label><input type="checkbox" id="filter-hide-full-loss" /> Ocultar hops com 100% de perda</label>
-            <label><input type="checkbox" id="filter-only-loss" /> Mostrar apenas hops com perda &gt; 0%</label>
+            <label>Base
+              <select id="loss-basis">
+                <option value="total">sessão inteira</option>
+                <option value="recent">ciclos recentes</option>
+              </select>
+            </label>
+            <label><input type="checkbox" id="filter-hide-full-loss" /> Ocultar saltos sem resposta (100%)</label>
+            <label><input type="checkbox" id="filter-only-loss" /> Só saltos com perda</label>
           </div>
-          <div class="chart-filters" id="hop-filter-list"></div>
-          <canvas id="loss-chart" width="900" height="300"></canvas>
+          <canvas id="loss-chart" aria-label="Gráfico de perda por salto"></canvas>
+          <p class="hint">Perda só em saltos intermediários costuma ser limitação de resposta ICMP dos roteadores. O que importa é a perda que chega ao destino.</p>
         </article>
 
         <article class="card panel">
           <div class="panel-title-row">
-            <h2>Incidentes de Queda</h2>
+            <h2>Quedas</h2>
             <small id="outage-meta">Sem dados</small>
           </div>
           <div class="table-wrapper">
             <table id="outages-table">
               <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Início</th>
-                  <th>Fim</th>
-                  <th>Duração (s)</th>
-                  <th>Ciclos</th>
-                </tr>
+                <tr><th>#</th><th>Início</th><th>Fim</th><th>Duração</th><th>Onde</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -69,25 +138,18 @@
         </article>
       </section>
 
-      <section class="card panel reveal">
+      <section class="card panel">
         <div class="panel-title-row">
-          <h2>Status por Hop</h2>
-          <small id="snapshot-meta">Aguardando arquivo...</small>
+          <h2>Status por salto</h2>
+          <small id="snapshot-meta">Aguardando dados...</small>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper tall">
           <table id="hops-table">
             <thead>
               <tr>
-                <th>Hop</th>
-                <th>Host/IP</th>
-                <th>Host Name</th>
-                <th>Sent (pkt)</th>
-                <th>Recv (pkt)</th>
-                <th>Loss (%)</th>
-                <th>Best (ms)</th>
-                <th>Worst (ms)</th>
-                <th>Avrg (ms)</th>
-                <th>Last (ms)</th>
+                <th>Salto</th><th>Host/IP</th><th>Nome</th><th class="num">Enviados (pkt)</th><th class="num">Recebidos (pkt)</th>
+                <th class="num">Perda (%)</th><th class="num">Perda recente (%)</th><th class="num">Melhor (ms)</th><th class="num">Pior (ms)</th>
+                <th class="num">Média (ms)</th><th class="num">Última (ms)</th><th class="num">Jitter (ms)</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -95,39 +157,64 @@
         </div>
       </section>
 
-      <section class="card panel reveal">
-        <div class="panel-title-row">
-          <h2>Variação de Latência Média (Avrg ms) no Tempo</h2>
-          <small id="latency-meta">Sem histórico</small>
-        </div>
-        <div class="chart-filters">
-          <label>Janela média móvel
-            <select id="latency-ma-window">
-              <option value="1">1 (sem suavização)</option>
-              <option value="5" selected>5</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-            </select>
-          </label>
-          <label>Janela temporal
-            <select id="latency-range">
-              <option value="120">últimas 120 amostras</option>
-              <option value="300" selected>últimas 300 amostras</option>
-              <option value="900">últimas 900 amostras</option>
-              <option value="0">tudo</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="latency-show-raw" /> Exibir linha bruta</label>
-          <label><input type="checkbox" id="latency-show-ma" checked /> Exibir média móvel</label>
-        </div>
-        <div class="chart-filters" id="latency-hop-filter-list"></div>
-        <div class="chart-legend" id="latency-legend"></div>
-        <canvas id="latency-chart"></canvas>
-        <small id="status-meta">Status do link no tempo</small>
-        <canvas id="link-status-chart"></canvas>
+      <section class="grid">
+        <article class="card panel">
+          <div class="panel-title-row">
+            <h2>Eventos</h2>
+            <small id="events-meta">-</small>
+          </div>
+          <ol class="events" id="events-list"></ol>
+        </article>
+        <article class="card panel">
+          <div class="panel-title-row"><h2>Rota e ambiente</h2></div>
+          <dl class="facts" id="facts"></dl>
+          <div id="access-box" class="access"></div>
+        </article>
       </section>
     </main>
 
+    <footer class="footer"><small id="footer-text">Network Stability Monitor</small></footer>
+
+    <dialog id="settings-dialog">
+      <form method="dialog" id="settings-form" class="dialog-body">
+        <h2>Configurações do monitoramento</h2>
+        <p class="hint" id="settings-note"></p>
+        <label class="field">Destino (IP ou host)
+          <input name="target" id="cfg-target" required autocomplete="off" spellcheck="false" />
+        </label>
+        <div class="presets" id="target-presets"></div>
+        <div class="field-grid">
+          <label class="field">Intervalo entre ciclos (s)<input name="interval_sec" type="number" step="0.1" /></label>
+          <label class="field">Timeout do ping (ms)<input name="timeout_ms" type="number" step="50" /></label>
+          <label class="field">Máximo de saltos<input name="max_hops" type="number" step="1" /></label>
+          <label class="field">Ciclos sem resposta para confirmar queda<input name="outage_min_cycles" type="number" step="1" /></label>
+          <label class="field">Redescoberta da rota (min, 0 = desligada)<input name="route_refresh_min" type="number" step="1" /></label>
+        </div>
+        <p class="hint">Trocar o destino inicia uma nova sessão: as evidências atuais são arquivadas em <code>data/sessoes/</code>.</p>
+        <p class="form-error" id="settings-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn" id="settings-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="settings-save" value="save">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="sessions-dialog">
+      <div class="dialog-body">
+        <h2>Sessões anteriores</h2>
+        <p class="hint">Cada nova sessão arquiva a anterior. Baixe o pacote de evidências de qualquer sessão.</p>
+        <div class="table-wrapper tall">
+          <table id="sessions-table">
+            <thead><tr><th>Sessão</th><th>Destino</th><th>Período</th><th class="num">Quedas</th><th class="num">Disponib.</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="dialog-actions"><button type="button" class="btn" id="sessions-close">Fechar</button></div>
+      </div>
+    </dialog>
+
+    <input type="file" id="file-input" multiple accept=".csv,.txt,.zip,.json" hidden />
+    <div id="toast" class="toast" role="status" hidden></div>
     <script src="dashboard.js"></script>
   </body>
 </html>
